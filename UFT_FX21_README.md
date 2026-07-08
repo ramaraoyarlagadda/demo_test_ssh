@@ -25,26 +25,24 @@ TestStep = 1
 Select Case channelSource
     Case "FX21"
         TestStep = TestStep + 1
-        dealKeyResult = keyDealUsingFX21(TestStep)
-        If dealKeyResult = True Then
-            ' FX21 logic...
-        End If
+        Call keyDealUsingFX21(TestStep)   ' Sub - no return value
+        ' FX21 logic continues here...
 End Select
 ```
 
 ## Closure order (full script)
 
 ```vbscript
-End If      ' keyDealUsingFX21
 End Select  ' channelSource
 End If      ' ProcessThisRow
 Next        ' For RowNum
 ```
 
-## `keyDealUsingFX21` type mismatch fix
+## `Type mismatch: 'keyDealUsingFX21'` — fixed
 
-| Definition | Use this |
-|------------|----------|
-| `Function` returns `True`/`False` | `If keyDealUsingFX21(TestStep) Then` or `dealKeyResult = ... : If dealKeyResult = True Then` |
-| `Function` returns `"PASS"`/`"FAIL"` | `If UCase(CStr(keyDealUsingFX21(TestStep))) = "PASS" Then` |
-| `Sub` (no return) | `Call keyDealUsingFX21(TestStep)` — do not use inside `If ... Then` |
+`keyDealUsingFX21` is a **Sub**, not a Function. It has no return value.
+
+| Wrong (causes Type mismatch) | Correct |
+|---|---|
+| `dealKeyResult = keyDealUsingFX21(TestStep)` | `Call keyDealUsingFX21(TestStep)` |
+| `If keyDealUsingFX21(TestStep) Then` | `Call keyDealUsingFX21(TestStep)` then continue |

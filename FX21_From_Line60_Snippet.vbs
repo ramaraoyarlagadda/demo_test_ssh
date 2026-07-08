@@ -5,7 +5,8 @@
 '  1. Keep your existing setup code (FileSystem, DataTable import, report files, screenshots folder).
 '  2. Paste this block in place of the broken Select Case / FX21 section.
 '  3. Comment out "On Error Resume Next" while debugging.
-'  4. Confirm keyDealUsingFX21 is a Function returning True/False (see notes at bottom).
+'  4. keyDealUsingFX21 is a Sub - use Call (NOT assignment). That fixes:
+'       Type mismatch: 'keyDealUsingFX21'
 '***************************************************************************************************************
 
 channelSource = "FX21"
@@ -17,31 +18,21 @@ Select Case channelSource
 
         TestStep = TestStep + 1
 
-        ' --- Option A: Function returns Boolean ---
-        dealKeyResult = keyDealUsingFX21(TestStep)
-        If dealKeyResult = True Then
+        ' CORRECT - keyDealUsingFX21 is a Sub (no return value)
+        Call keyDealUsingFX21(TestStep)
 
-            ' >>> Put your FX21 / FM33M / FX41 / FX78 logic here <<<
-            ' (Use the full cleaned script: FX21_Deal_Validation_Executable.vbs)
-
-        End If  ' dealKeyResult
-
-        ' --- Option B: If keyDealUsingFX21 is a Sub, use this instead of Option A ---
-        ' Call keyDealUsingFX21(TestStep)
-        ' Then continue with FX21 logic (no If dealKeyResult)
-
-        ' --- Option C: If function returns "PASS"/"FAIL" ---
+        ' WRONG - causes Type mismatch: 'keyDealUsingFX21'
         ' dealKeyResult = keyDealUsingFX21(TestStep)
-        ' If UCase(CStr(dealKeyResult)) = "PASS" Then
-        '     ' FX21 logic
-        ' End If
+        ' If keyDealUsingFX21(TestStep) Then
+
+        ' >>> Continue with FX21 / FM33M / FX41 / FX78 logic here <<<
+        ' (Use the full cleaned script: FX21_Deal_Validation_Executable.vbs)
 
 End Select
 
 '***************************************************************************************************************
 ' REQUIRED CLOSURE ORDER for the FULL script (not just this snippet):
 '
-'   End If      ' closes If keyDealUsingFX21 / dealKeyResult
 '   End Select  ' closes Select Case channelSource
 '   End If      ' closes If ProcessThisRow
 '   Next        ' closes For RowNum = 1 To RowCount
