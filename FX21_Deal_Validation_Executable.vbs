@@ -21,11 +21,100 @@
 Const RUN_FROM_FX21_SECTION = True
 
 '============================================================
+' LOCAL HELPERS - must exist before setup / FX21 section
+'============================================================
+Function EnvParamExists(paramName)
+    On Error Resume Next
+    Dim dummy
+    dummy = Environment(paramName)
+    EnvParamExists = (Err.Number = 0)
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Sub EnsureReportEnvironment(FileSystem)
+    ' Fixes: The environment parameter 'ResultFileForThisRun' was not found
+    ' This MUST run before any Report_* library call.
+
+    Dim resultFolderOk, summaryOk, detailOk, resultFileOk, shotsOk
+
+    resultFolderOk = EnvParamExists("ResultFolder")
+    If resultFolderOk Then
+        If Trim(CStr(Environment("ResultFolder"))) = "" Then resultFolderOk = False
+    End If
+    If Not resultFolderOk Then
+        ' Fallback local results folder if framework ResultFolder is missing
+        Environment("ResultFolder") = "C:\Temp\UFT_Results\"
+    End If
+
+    If Right(Environment("ResultFolder"), 1) <> "\" Then
+        Environment("ResultFolder") = Environment("ResultFolder") & "\"
+    End If
+
+    If Not FileSystem.FolderExists(Environment("ResultFolder")) Then
+        FileSystem.CreateFolder Environment("ResultFolder")
+    End If
+
+    If Not EnvParamExists("TestStatusResult") Then
+        Environment("TestStatusResult") = True
+    End If
+
+    If moduleName = "" Then
+        moduleName = "NewModule"
+    End If
+
+    summaryOk = EnvParamExists("ResultFileForThisRun_Summary")
+    If summaryOk Then
+        If Trim(CStr(Environment("ResultFileForThisRun_Summary"))) = "" Then summaryOk = False
+    End If
+    If Not summaryOk Then
+        Environment("ResultFileForThisRun_Summary") = Environment("ResultFolder") & moduleName & ".html"
+        Call createReportFileDetails(FileSystem, Environment("ResultFileForThisRun_Summary"))
+        Call report_UpdateSummaryDataHeader(FileSystem, Environment("ResultFileForThisRun_Summary"))
+    End If
+
+    detailOk = EnvParamExists("ResultFileForThisRun_Detail")
+    If detailOk Then
+        If Trim(CStr(Environment("ResultFileForThisRun_Detail"))) = "" Then detailOk = False
+    End If
+    If Not detailOk Then
+        Environment("ResultFileForThisRun_Detail") = Environment("ResultFolder") & moduleName & "Details.html"
+        Call createReportFileDetails(FileSystem, Environment("ResultFileForThisRun_Detail"))
+    End If
+
+    ' Library Report_EndOfTCReport reads THIS exact name
+    resultFileOk = EnvParamExists("ResultFileForThisRun")
+    If resultFileOk Then
+        If Trim(CStr(Environment("ResultFileForThisRun"))) = "" Then resultFileOk = False
+    End If
+    If Not resultFileOk Then
+        Environment("ResultFileForThisRun") = Environment("ResultFileForThisRun_Detail")
+    End If
+
+    shotsOk = EnvParamExists("ScreenShots")
+    If shotsOk Then
+        If Trim(CStr(Environment("ScreenShots"))) = "" Then shotsOk = False
+    End If
+    If Not shotsOk Then
+        If Not FileSystem.FolderExists(Environment("ResultFolder") & "Screenshots_" & moduleName) Then
+            FileSystem.CreateFolder Environment("ResultFolder") & "Screenshots_" & moduleName
+        End If
+        Environment("ScreenShots") = Environment("ResultFolder") & "Screenshots_" & moduleName & "\"
+    End If
+    Environment("Screenshots") = Environment("ScreenShots")
+End Sub
+
+'============================================================
 ' SETUP (required even when testing from FX21 section)
 '============================================================
 Set FileSystem = CreateObject("Scripting.FileSystemObject")
 Environment("TestStatusResult") = True
-sheetName = Environment("LocalSheetName")
+
+If EnvParamExists("LocalSheetName") Then
+    sheetName = Environment("LocalSheetName")
+Else
+    sheetName = "NewModule"   ' fallback if LocalSheetName not loaded
+End If
 Screen_Name = sheetName
 Sheet_Name = sheetName
 moduleName = "NewModule"    '******* Change the module name based on the test
@@ -33,22 +122,8 @@ moduleName = "NewModule"    '******* Change the module name based on the test
 CurrentDateTime = Replace(Date, "/", "") & "_" & Replace(Time, ":", "")
 currentDate = Replace(Date, "/", ".")
 
-' Create file for Test Summary storage
-Environment("ResultFileForThisRun_Summary") = Environment("ResultFolder") & moduleName & ".html"
-Call createReportFileDetails(FileSystem, Environment("ResultFileForThisRun_Summary"))
-Call report_UpdateSummaryDataHeader(FileSystem, Environment("ResultFileForThisRun_Summary"))
-
-' Create file for Test Details storage
-Environment("ResultFileForThisRun_Detail") = Environment("ResultFolder") & moduleName & "Details.html"
-Environment("ResultFileForThisRun") = Environment("ResultFileForThisRun_Detail")
-Call createReportFileDetails(FileSystem, Environment("ResultFileForThisRun_Detail"))
-
-' Create folder for Screenshots
-If Not FileSystem.FolderExists(Environment("ResultFolder") & "Screenshots_" & moduleName) Then
-    FileSystem.CreateFolder Environment("ResultFolder") & "Screenshots_" & moduleName
-End If
-Environment("ScreenShots") = Environment("ResultFolder") & "Screenshots_" & moduleName & "\"
-Environment("Screenshots") = Environment("ScreenShots")
+' ALWAYS initialize report env vars before any Report_* call
+Call EnsureReportEnvironment(FileSystem)
 
 ' Create the Data sheet and import data
 TestStep = 0
@@ -76,7 +151,10 @@ For RowNum = 1 To RowCount
 
         '------------------------------------------------------------
         ' FX21 SECTION (start here for temporary execution / debug)
+        ' If you start from here, still initialize report env first.
         '------------------------------------------------------------
+        Call EnsureReportEnvironment(FileSystem)
+
         channelSource = "FX21"
         TestStep = 1
 
@@ -417,8 +495,15 @@ For RowNum = 1 To RowCount
         End Select  ' channelSource
 
         ' Update the test summary
-        Call Report_EndOfTCReport(FileSystem, "</table><br><br><br>")
-        Call Report_UpdateTestSummaryDetails(FileSystem, TestIdentifier, TestScript, Environment("TestStatusResult"), "")
+        ' Re-ensure env var exists (needed if script was started from FX21 section)
+        Call EnsureReportEnvironment(FileSystem)
+
+        If EnvParamExists("ResultFileForThisRun") Then
+            Call Report_EndOfTCReport(FileSystem, "</table><br><br><br>")
+            Call Report_UpdateTestSummaryDetails(FileSystem, TestIdentifier, TestScript, Environment("TestStatusResult"), "")
+        Else
+            MsgBox "Skipped Report_EndOfTCReport because Environment(""ResultFileForThisRun"") is still missing."
+        End If
         Environment("TestStatusResult") = True
 
     End If  ' ProcessThisRow / TestLabels / RUN_FROM_FX21_SECTION

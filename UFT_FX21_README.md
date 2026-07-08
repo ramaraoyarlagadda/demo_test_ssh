@@ -46,3 +46,17 @@ Next        ' For RowNum
 |---|---|
 | `dealKeyResult = keyDealUsingFX21(TestStep)` | `Call keyDealUsingFX21(TestStep)` |
 | `If keyDealUsingFX21(TestStep) Then` | `Call keyDealUsingFX21(TestStep)` then continue |
+
+## `ResultFileForThisRun` was not found — fixed
+
+`Report_EndOfTCReport` opens `Environment("ResultFileForThisRun")`. If you start from line 60 and skip setup, that env var is missing.
+
+**Minimum fix before `Report_EndOfTCReport`:**
+
+```vbscript
+Environment("ResultFileForThisRun") = Environment("ResultFolder") & "NewModuleDetails.html"
+```
+
+Or paste the full block from `Fix_ResultFileForThisRun.vbs`.
+
+The full script now calls `EnsureReportEnvironment` before report helpers.
